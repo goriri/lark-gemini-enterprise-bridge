@@ -1,6 +1,8 @@
-# lark-channel-bridge
+# lark-gemini-enterprise-bridge
 
-A lightweight bot that bridges Feishu / Lark messenger with your local Claude Code or Codex CLI. Run one command, scan a QR code to bind a PersonalAgent app, and talk to your local coding agent from chat.
+*This project is a fork of [zarazhangrui/lark-coding-agent-bridge](https://github.com/zarazhangrui/lark-coding-agent-bridge), modified to support Google Cloud Gemini Enterprise via the StreamAssist API.*
+
+A lightweight bot that bridges Feishu / Lark messenger with your local Claude Code, Codex CLI, or Gemini Enterprise. Run one command, scan a QR code to bind a PersonalAgent app, and talk to your local coding agent from chat.
 
 [中文 README](./README.zh.md)
 
@@ -8,7 +10,7 @@ For a product walkthrough, see the [Feishu document](https://larkcommunity.feish
 
 ## What it does
 
-- Forwards Feishu / Lark messages to local Claude Code or Codex CLI. Send a DM directly, or `@bot` in a group.
+- Forwards Feishu / Lark messages to local Claude Code, Codex CLI, or Gemini Enterprise. Send a DM directly, or `@bot` in a group.
 - **Streaming card**: text replies and tool calls update on one Lark card in real time.
 - **COT process messages**: optionally send a process message with agent progress text and tool calls, then send the final answer separately.
 - **Session continuity**: each chat, topic, or document comment thread keeps its own session.
@@ -23,6 +25,11 @@ For a product walkthrough, see the [Feishu document](https://larkcommunity.feish
 - At least one local agent installed and logged in:
   - Claude Code: `claude`, see https://docs.anthropic.com/en/docs/claude-code/quickstart
   - Codex CLI: `codex`, see https://developers.openai.com/codex/cli
+  - Gemini Enterprise: API integration uses Application Default Credentials (ADC). Ensure your environment provides ADC or a service account, and set the following environment variables:
+    - `GEMINI_ENTERPRISE_PROJECT_ID` (e.g., `my-project-id`)
+    - `GEMINI_ENTERPRISE_LOCATION` (e.g., `global`)
+    - `GEMINI_ENTERPRISE_APP_ID` (e.g., `my-app-id`)
+    - `GEMINI_ENTERPRISE_ENABLE_WEB_SEARCH` (e.g., `true` to enable web grounding)
 - A Feishu / Lark **PersonalAgent** app. The first-run QR wizard can create and bind one for you.
 
 ## Install
@@ -88,13 +95,14 @@ Platform mapping:
 
 Daemon logs are under `~/.lark-channel/profiles/<profile>/logs/daemon/`.
 
-### Multiple profiles: Claude and Codex
+### Multiple profiles: Claude, Codex, and Gemini Enterprise
 
-By default, the bridge starts with the currently selected profile. Use `profile use <name>` to change it. Each profile keeps its own app credentials, sessions, working directories, and logs. Create multiple profiles only when you need to connect multiple PersonalAgent apps, or run Claude and Codex as separate bots:
+By default, the bridge starts with the currently selected profile. Use `profile use <name>` to change it. Each profile keeps its own app credentials, sessions, working directories, and logs. Create multiple profiles only when you need to connect multiple PersonalAgent apps, or run Claude, Codex, and Gemini Enterprise as separate bots:
 
 ```bash
 lark-channel-bridge start --profile claude --agent claude
 lark-channel-bridge start --profile codex --agent codex
+GEMINI_ENTERPRISE_PROJECT_ID=... GEMINI_ENTERPRISE_LOCATION=... GEMINI_ENTERPRISE_APP_ID=... lark-channel-bridge start --profile gemini --agent gemini-enterprise
 ```
 
 For example, to restart only the Codex bot:
@@ -210,11 +218,11 @@ This is a profile-field snippet. Do not replace the whole `config.json` with it;
 
 Mode mapping:
 
-| Bridge access | Claude permission mode | Codex mode |
-|---|---|---|
-| `full` | `bypassPermissions` | `danger-full-access` |
-| `workspace` | `acceptEdits` | `workspace-write` |
-| `read-only` | `plan` | `read-only` |
+| Bridge access | Claude permission mode | Codex mode | Gemini Enterprise |
+|---|---|---|---|
+| `full` | `bypassPermissions` | `danger-full-access` | API streamAssist |
+| `workspace` | `acceptEdits` | `workspace-write` | API streamAssist |
+| `read-only` | `plan` | `read-only` | API streamAssist |
 
 The legacy `sandbox` field is still readable for old configs. After the bridge saves the profile, it migrates that setting to canonical `permissions`.
 

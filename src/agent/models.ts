@@ -43,8 +43,14 @@ const CODEX_MODELS: ModelOption[] = [
   { value: 'o3', label: 'o3' },
 ];
 
+/** Gemini Enterprise models. */
+const GEMINI_MODELS: ModelOption[] = [
+  { value: DEFAULT_MODEL, label: '跟随默认（不指定）' },
+];
+
 /** The model picker options for a profile's agent kind. */
 export function supportedModels(agentKind: AgentKind): ModelOption[] {
+  if (agentKind === 'gemini-enterprise') return GEMINI_MODELS;
   return agentKind === 'codex' ? CODEX_MODELS : CLAUDE_MODELS;
 }
 

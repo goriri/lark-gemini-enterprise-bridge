@@ -48,6 +48,13 @@ export function buildUnit(inputs: UnitInputs): string {
   // Profile names / flags are validated safe tokens (no spaces), so appending
   // them unquoted is fine.
   const runArgs = inputs.runArgs.join(' ');
+  const extraEnv = [];
+  for (const k of ['GEMINI_ENTERPRISE_PROJECT_ID', 'GEMINI_ENTERPRISE_LOCATION', 'GEMINI_ENTERPRISE_APP_ID', 'GEMINI_ENTERPRISE_ENABLE_WEB_SEARCH', 'GOOGLE_APPLICATION_CREDENTIALS']) {
+    if (process.env[k]) {
+      extraEnv.push(`Environment="${k}=${escape(process.env[k]!)}"`);
+    }
+  }
+
   return `[Unit]
 Description=Lark Channel Bridge bot
 After=network-online.target
@@ -62,6 +69,7 @@ StandardOutput=append:${daemonStdoutPath(inputs.profile)}
 StandardError=append:${daemonStderrPath(inputs.profile)}
 Environment="PATH=${escape(inputs.envPath)}"
 Environment="LARK_CHANNEL_HOME=${escape(inputs.channelHome)}"
+${extraEnv.join('\n')}
 
 [Install]
 WantedBy=default.target

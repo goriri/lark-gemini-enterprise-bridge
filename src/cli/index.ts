@@ -167,7 +167,7 @@ program
   .description('Install (if needed) and start the bridge as an OS-managed daemon')
   .option('--profile <name>', 'profile name (defaults to active profile)')
   .option('--web-ui', 'run the supervisor + web console as the background service (hosts all profiles) instead of a single profile')
-  .option('--agent <kind>', 'agent kind for first-run profile bootstrap (claude or codex)')
+  .option('--agent <kind>', 'agent kind for first-run profile bootstrap (claude or codex or gemini-enterprise)')
   .option('--workspace <path>', 'initial working directory for first-run profile bootstrap')
   .option('--app-id <id>', 'use an existing Lark/Feishu app instead of QR app creation')
   .option('--app-secret <secret>', 'App Secret for --app-id; prefer interactive input on shared machines')

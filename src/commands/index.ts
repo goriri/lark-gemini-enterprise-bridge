@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, isAbsolute } from 'node:path';
 import type { LarkChannel, NormalizedMessage } from '@larksuite/channel';
-import { claudeCapability, codexCapability } from '../agent/capability';
+import { claudeCapability, codexCapability, geminiCapability, type AgentCapabilityId } from '../agent/capability';
 import { DEFAULT_MODEL, normalizeModelSelection, supportedModels } from '../agent/models';
 import type { AgentAdapter } from '../agent/types';
 import type { ActiveRuns } from '../bot/active-runs';
@@ -146,7 +146,7 @@ type Handler = (args: string, ctx: CommandContext) => Promise<void>;
 
 interface ResumeCandidate {
   scopeId: string;
-  agentId: 'claude' | 'codex';
+  agentId: AgentCapabilityId;
   cwdRealpath: string;
   policyFingerprint: string;
   sessionId?: string;
@@ -1111,15 +1111,15 @@ async function handleDoctor(args: string, ctx: CommandContext): Promise<void> {
 
   const profileKey = ctx.controls.profile;
   if (doctorInFlightProfiles.has(profileKey)) {
-    await reply(ctx, 'doctor in-flight: 当前 profile 已有诊断运行中。');
-    return;
-  }
+}
   doctorLastByOperator.set(rateKey, now);
 
   const capability =
-    ctx.controls.profileConfig.agentKind === 'codex'
-      ? codexCapability(ctx.controls.profileConfig)
-      : claudeCapability(ctx.controls.profileConfig);
+    ctx.controls.profileConfig.agentKind === 'gemini-enterprise'
+      ? geminiCapability(ctx.controls.profileConfig)
+      : ctx.controls.profileConfig.agentKind === 'codex'
+        ? codexCapability(ctx.controls.profileConfig)
+        : claudeCapability(ctx.controls.profileConfig);
   const policy = evaluateRunPolicy({
     scope: {
       source: 'im',

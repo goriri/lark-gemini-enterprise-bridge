@@ -65,6 +65,7 @@ ${argStrings}
         <string>${escape(inputs.envPath)}</string>
         <key>LARK_CHANNEL_HOME</key>
         <string>${escape(inputs.channelHome)}</string>
+${['GEMINI_ENTERPRISE_PROJECT_ID', 'GEMINI_ENTERPRISE_LOCATION', 'GEMINI_ENTERPRISE_APP_ID', 'GEMINI_ENTERPRISE_ENABLE_WEB_SEARCH', 'GOOGLE_APPLICATION_CREDENTIALS'].map(k => process.env[k] ? `        <key>${k}</key>\n        <string>${escape(process.env[k]!)}</string>` : '').filter(Boolean).join('\n')}
     </dict>
 </dict>
 </plist>

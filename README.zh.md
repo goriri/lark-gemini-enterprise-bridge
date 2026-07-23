@@ -1,8 +1,18 @@
-# lark-channel-bridge
+# lark-gemini-enterprise-bridge
 
-把飞书 / Lark 消息和本地 Claude Code 或 Codex CLI 打通的轻量 bot。用一条命令启动，扫码绑定 PersonalAgent 应用，然后在飞书里和本机编程助手对话，让它读图、处理文件、改代码。
+*本项目是 [zarazhangrui/lark-coding-agent-bridge](https://github.com/zarazhangrui/lark-coding-agent-bridge) 的一个分支，修改以通过 StreamAssist API 支持 Google Cloud Gemini Enterprise。*
+
+把飞书 / Lark 消息和本地 Claude Code, Codex CLI 或 Gemini Enterprise 打通的轻量 bot。用一条命令启动，扫码绑定 PersonalAgent 应用，然后在飞书里和本机编程助手对话，让它读图、处理文件、改代码。
 
 [English README](./README.md)
+
+### 环境变量
+
+- `GEMINI_ENTERPRISE_PROJECT_ID`: Google Cloud 项目 ID
+- `GEMINI_ENTERPRISE_LOCATION`: App 所在位置 (例如 `global`, `us-central1`)
+- `GEMINI_ENTERPRISE_APP_ID`: 对应 Gemini Enterprise 的 Engine/App ID
+- `GEMINI_ENTERPRISE_ENABLE_WEB_SEARCH`: 设置为 `true` 以启用基于 Google Search 或是 Enterprise Web Search 的 Grounding 能力。请注意，您也必须在 Google Cloud Console 中为该 App 开启 "Enable web grounding" 功能。
+- `GOOGLE_APPLICATION_CREDENTIALS`: (可选) 服务账号 JSON 密钥的路径。如果不提供，程序将自动退而使用应用默认凭证 (Application Default Credentials, 比如通过 `gcloud auth application-default login` 获取的凭证或 Compute Engine 元数据服务器凭证)。
 
 关于能实现的效果，详情可以阅读[飞书文档](https://larkcommunity.feishu.cn/docx/OaRIdFIRFoLM3xxTmKwcetHqn5e)
 
