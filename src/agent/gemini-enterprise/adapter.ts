@@ -8,6 +8,38 @@ import {
   type AgentRunOptions,
 } from '../types';
 
+export async function fetchGeminiEnterpriseOptions() {
+  const projectId = process.env.GEMINI_ENTERPRISE_PROJECT_ID;
+  const location = process.env.GEMINI_ENTERPRISE_LOCATION;
+  const collection = 'default_collection';
+  if (!projectId || !location) return null;
+
+  const auth = new GoogleAuth({ scopes: ['https://www.googleapis.com/auth/cloud-platform'] });
+  const client = await auth.getClient();
+  let agents: string[] = [];
+  let datastores: string[] = [];
+
+  try {
+    const res = await client.request<any>({
+      url: `https://discoveryengine.googleapis.com/v1alpha/projects/${projectId}/locations/${location}/collections/${collection}/engines`
+    });
+    agents = (res.data.engines || []).map((e: any) => e.name.split('/').pop());
+  } catch (e: any) {
+    console.error('Error fetching engines:', e.message);
+  }
+
+  try {
+    const res = await client.request<any>({
+      url: `https://discoveryengine.googleapis.com/v1alpha/projects/${projectId}/locations/${location}/collections/${collection}/dataStores`
+    });
+    datastores = (res.data.dataStores || []).map((e: any) => e.name.split('/').pop());
+  } catch (e: any) {
+    console.error('Error fetching datastores:', e.message);
+  }
+
+  return { agents, datastores };
+}
+
 export class GeminiEnterpriseAdapter implements AgentAdapter {
   readonly id = 'gemini-enterprise';
   readonly displayName = 'Gemini Enterprise';
@@ -74,6 +106,45 @@ export class GeminiEnterpriseAdapter implements AgentAdapter {
 
     const endpoint = `https://discoveryengine.googleapis.com/v1/projects/${projectId}/locations/${location}/collections/default_collection/engines/${appId}/assistants/default_assistant:streamAssist?alt=sse`;
 
+    // Parse @agent and #datasource from prompt
+    const agentMatches = [...opts.prompt.matchAll(/@([a-zA-Z0-9-]+)/g)];
+    const datastoreMatches = [...opts.prompt.matchAll(/#([a-zA-Z0-9-]+)/g)];
+    const agentIds = agentMatches.map(m => m[1]);
+    const datastoreIds = datastoreMatches.map(m => m[1]);
+    
+    // Clean prompt
+    const cleanPrompt = opts.prompt
+      .replace(/@[a-zA-Z0-9-]+/g, '')
+      .replace(/#[a-zA-Z0-9-]+/g, '')
+      .trim();
+
+    const requestBody: any = {
+      query: { text: cleanPrompt || opts.prompt },
+    };
+
+    if (agentIds.length > 0) {
+      requestBody.agentsSpec = {
+        agentSpecs: agentIds.map(id => ({
+          agentId: id
+        }))
+      };
+    }
+
+    const toolsSpec: any = {};
+    if (process.env.GEMINI_ENTERPRISE_ENABLE_WEB_SEARCH === 'true') {
+      toolsSpec.webGroundingSpec = {};
+    }
+    if (datastoreIds.length > 0) {
+      toolsSpec.vertexAiSearchSpec = {
+        dataStoreSpecs: datastoreIds.map(id => ({
+          dataStore: `projects/${projectId}/locations/${location}/collections/default_collection/dataStores/${id}`
+        }))
+      };
+    }
+    if (Object.keys(toolsSpec).length > 0) {
+      requestBody.toolsSpec = toolsSpec;
+    }
+
     try {
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -82,12 +153,7 @@ export class GeminiEnterpriseAdapter implements AgentAdapter {
           'Content-Type': 'application/json',
           'x-goog-user-project': projectId,
         },
-        body: JSON.stringify({
-          query: { text: opts.prompt },
-          ...(process.env.GEMINI_ENTERPRISE_ENABLE_WEB_SEARCH === 'true' 
-            ? { toolsSpec: { webGroundingSpec: {} } }
-            : {})
-        }),
+        body: JSON.stringify(requestBody),
         signal,
       });
 

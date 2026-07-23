@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import { dirname, isAbsolute } from 'node:path';
 import type { LarkChannel, NormalizedMessage } from '@larksuite/channel';
 import { claudeCapability, codexCapability, geminiCapability, type AgentCapabilityId } from '../agent/capability';
+import { fetchGeminiEnterpriseOptions } from '../agent/gemini-enterprise/adapter';
 import { DEFAULT_MODEL, normalizeModelSelection, supportedModels } from '../agent/models';
 import type { AgentAdapter } from '../agent/types';
 import type { ActiveRuns } from '../bot/active-runs';
@@ -328,7 +329,18 @@ async function handleNew(args: string, ctx: CommandContext): Promise<void> {
     });
   }
   ctx.sessions.clear(ctx.scope);
-  await reply(ctx, wasRunning ? '已中断当前任务并开始新会话。' : '已开始新会话。');
+  let welcomeMsg = wasRunning ? '已中断当前任务并开始新会话。' : '已开始新会话。';
+
+  if (ctx.agent.id === 'gemini-enterprise') {
+    const opts = await fetchGeminiEnterpriseOptions();
+    if (opts) {
+      welcomeMsg += '\n\n**可用数据源 (Data Sources):** ' + (opts.datastores.length ? opts.datastores.map(s => `#${s}`).join(', ') : '无');
+      welcomeMsg += '\n**可用 Agents:** ' + (opts.agents.length ? opts.agents.map(a => `@${a}`).join(', ') : '无');
+      welcomeMsg += '\n\n*提示: 在输入中直接使用 `#数据源ID` 或 `@AgentID` 即可调用。*';
+    }
+  }
+
+  await reply(ctx, welcomeMsg);
 }
 
 async function handleNewChat(rawName: string, ctx: CommandContext): Promise<void> {
@@ -355,9 +367,18 @@ async function handleNewChat(rawName: string, ctx: CommandContext): Promise<void
   }
 
   // Welcome the user inside the new group with a hint about how to start.
-  const welcome = sourceCwd
+  let welcome = sourceCwd
     ? `🎉 群已建好，cwd 继承自原群：\`${sourceCwd}\`\n\n@我 + 任意消息开始对话。`
     : '🎉 群已建好。\n\n@我 + 任意消息开始对话。';
+
+  if (ctx.agent.id === 'gemini-enterprise') {
+    const opts = await fetchGeminiEnterpriseOptions();
+    if (opts) {
+      welcome += '\n\n**可用数据源 (Data Sources):** ' + (opts.datastores.length ? opts.datastores.map(s => `#${s}`).join(', ') : '无');
+      welcome += '\n**可用 Agents:** ' + (opts.agents.length ? opts.agents.map(a => `@${a}`).join(', ') : '无');
+      welcome += '\n\n*提示: 在输入中直接使用 `#数据源ID` 或 `@AgentID` 即可调用。*';
+    }
+  }
   try {
     await ctx.channel.send(created.chatId, { markdown: welcome });
   } catch (err) {
