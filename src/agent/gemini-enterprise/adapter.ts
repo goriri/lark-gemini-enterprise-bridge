@@ -148,7 +148,13 @@ export class GeminiEnterpriseAdapter implements AgentAdapter {
         if (res.ok) {
           const data: any = await res.json();
           state.sessionId = data.name; // Full session resource name
-          yield { type: 'text', delta: `Created new session: ${state.sessionId?.split('/').pop()}` };
+          const opts = await fetchGeminiEnterpriseOptions();
+          let deltaMsg = `Created new session: ${state.sessionId?.split('/').pop()}`;
+          if (opts) {
+            deltaMsg += `\n\nAvailable Agents:\n${opts.agents.map(a => `- ${a}`).join('\n') || 'None'}`;
+            deltaMsg += `\n\nAvailable Data Sources:\n${opts.datastores.map(d => `- ${d}`).join('\n') || 'None'}`;
+          }
+          yield { type: 'text', delta: deltaMsg };
           isMetadataOnly = true;
         } else {
           yield { type: 'text', delta: `Failed to create session: ${await res.text()}` };
