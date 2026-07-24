@@ -332,12 +332,16 @@ async function handleNew(args: string, ctx: CommandContext): Promise<void> {
   let welcomeMsg = wasRunning ? '已中断当前任务并开始新会话。' : '已开始新会话。';
 
   if (ctx.agent.id === 'gemini-enterprise') {
-    const opts = await fetchGeminiEnterpriseOptions();
-    if (opts) {
-      welcomeMsg += '\n\n**可用数据源 (Data Sources):** ' + (opts.datastores.length ? opts.datastores.map(s => `#${s}`).join(', ') : '无');
-      welcomeMsg += '\n**可用 Agents:** ' + (opts.agents.length ? opts.agents.map(a => `@${a}`).join(', ') : '无');
-      welcomeMsg += '\n\n*提示: 在输入中直接使用 `#数据源ID` 或 `@AgentID` 即可调用。*';
-    }
+    welcomeMsg += '\n\n**Gemini Enterprise 指令:**\n' +
+      '- `#new`: 创建新 session\n' +
+      '- `#sessions`: 列出所有 sessions\n' +
+      '- `#session_id xxx`: 继续指定 session\n' +
+      '- `#agents`: 列出所有 agents\n' +
+      '- `#agent xxx`: 使用指定 agent\n' +
+      '- `#data_sources`: 列出所有数据源\n' +
+      '- `#all_ds`: 使用所有数据源\n' +
+      '- `#ds [xxx,yyy]`: 使用指定数据源\n' +
+      '- `#web_search`: 开启网络搜索';
   }
 
   await reply(ctx, welcomeMsg);
@@ -372,12 +376,16 @@ async function handleNewChat(rawName: string, ctx: CommandContext): Promise<void
     : '🎉 群已建好。\n\n@我 + 任意消息开始对话。';
 
   if (ctx.agent.id === 'gemini-enterprise') {
-    const opts = await fetchGeminiEnterpriseOptions();
-    if (opts) {
-      welcome += '\n\n**可用数据源 (Data Sources):** ' + (opts.datastores.length ? opts.datastores.map(s => `#${s}`).join(', ') : '无');
-      welcome += '\n**可用 Agents:** ' + (opts.agents.length ? opts.agents.map(a => `@${a}`).join(', ') : '无');
-      welcome += '\n\n*提示: 在输入中直接使用 `#数据源ID` 或 `@AgentID` 即可调用。*';
-    }
+    welcome += '\n\n**Gemini Enterprise 指令:**\n' +
+      '- `#new`: 创建新 session\n' +
+      '- `#sessions`: 列出所有 sessions\n' +
+      '- `#session_id xxx`: 继续指定 session\n' +
+      '- `#agents`: 列出所有 agents\n' +
+      '- `#agent xxx`: 使用指定 agent\n' +
+      '- `#data_sources`: 列出所有数据源\n' +
+      '- `#all_ds`: 使用所有数据源\n' +
+      '- `#ds [xxx,yyy]`: 使用指定数据源\n' +
+      '- `#web_search`: 开启网络搜索';
   }
   try {
     await ctx.channel.send(created.chatId, { markdown: welcome });

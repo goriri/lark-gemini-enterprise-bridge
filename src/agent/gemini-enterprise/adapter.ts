@@ -40,6 +40,14 @@ export async function fetchGeminiEnterpriseOptions() {
   return { agents, datastores };
 }
 
+interface ChatState {
+  sessionId?: string;
+  agentId?: string;
+  dataSources?: string[] | 'all';
+  webSearch?: boolean;
+}
+const chatStates = new Map<string, ChatState>();
+
 export class GeminiEnterpriseAdapter implements AgentAdapter {
   readonly id = 'gemini-enterprise';
   readonly displayName = 'Gemini Enterprise';
@@ -83,64 +91,151 @@ export class GeminiEnterpriseAdapter implements AgentAdapter {
       return;
     }
 
+    // Extract chatId
+    const chatIdMatch = opts.prompt.match(/"chatId":"([^"]+)"/);
+    const chatId: string = chatIdMatch && chatIdMatch[1] ? chatIdMatch[1] : 'default';
+    const state: ChatState = chatStates.get(chatId) || {};
+
+    // Determine user message part to avoid matching history
+    let userMessage = opts.prompt;
+    
+    // Parse metadata commands
+    if (/#agents\b/.test(userMessage)) {
+      const opts = await fetchGeminiEnterpriseOptions();
+      yield { type: 'text', delta: `Available Agents:\n${opts?.agents.map(a => `- ${a}`).join('\n') || 'None'}` };
+      yield { type: 'done', terminationReason: 'normal' };
+      return;
+    }
+    if (/#data_sources\b/.test(userMessage)) {
+      const opts = await fetchGeminiEnterpriseOptions();
+      yield { type: 'text', delta: `Available Data Sources:\n${opts?.datastores.map(d => `- ${d}`).join('\n') || 'None'}` };
+      yield { type: 'done', terminationReason: 'normal' };
+      return;
+    }
+
+    // State mutations
+    let isMetadataOnly = false;
+    if (/#web_search\b/.test(userMessage)) {
+      state.webSearch = true;
+    }
+    const agentMatch = userMessage.match(/#agent\s+([a-zA-Z0-9-_]+)/);
+    if (agentMatch) {
+      state.agentId = agentMatch[1];
+    }
+    if (/#all_ds\b/.test(userMessage)) {
+      state.dataSources = 'all';
+    }
+    const dsMatch = userMessage.match(/#ds\s+\[(.*?)\]/);
+    if (dsMatch && dsMatch[1]) {
+      state.dataSources = dsMatch[1].split(',').map(s => s.trim());
+    }
+
     let token: string | undefined | null;
     try {
       token = await this.auth.getAccessToken();
     } catch (e: any) {
-      yield {
-        type: 'error',
-        message: `Missing Gemini Enterprise credentials in environment variables.please use the ADC for auth.\nError: ${e.message}`,
-        terminationReason: 'failed',
-      };
+      yield { type: 'error', message: `Missing credentials. Error: ${e.message}`, terminationReason: 'failed' };
       return;
     }
 
-    if (!token) {
-      yield {
-        type: 'error',
-        message: 'Missing Gemini Enterprise credentials in environment variables.please use the ADC for auth.',
-        terminationReason: 'failed',
-      };
-      return;
+    if (/#new\b/.test(userMessage)) {
+      try {
+        const res = await fetch(`https://discoveryengine.googleapis.com/v1alpha/projects/${projectId}/locations/${location}/collections/default_collection/engines/${appId}/sessions`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json', 'x-goog-user-project': projectId },
+          body: JSON.stringify({ state: 'IN_PROGRESS' })
+        });
+        if (res.ok) {
+          const data: any = await res.json();
+          state.sessionId = data.name; // Full session resource name
+          yield { type: 'text', delta: `Created new session: ${state.sessionId?.split('/').pop()}` };
+          isMetadataOnly = true;
+        } else {
+          yield { type: 'text', delta: `Failed to create session: ${await res.text()}` };
+        }
+      } catch (e: any) {
+        yield { type: 'text', delta: `Failed to create session: ${e.message}` };
+      }
     }
 
-    const endpoint = `https://discoveryengine.googleapis.com/v1/projects/${projectId}/locations/${location}/collections/default_collection/engines/${appId}/assistants/default_assistant:streamAssist?alt=sse`;
+    if (/#sessions\b/.test(userMessage)) {
+      try {
+        const res = await fetch(`https://discoveryengine.googleapis.com/v1alpha/projects/${projectId}/locations/${location}/collections/default_collection/engines/${appId}/sessions`, {
+          headers: { 'Authorization': `Bearer ${token}`, 'x-goog-user-project': projectId }
+        });
+        if (res.ok) {
+          const data: any = await res.json();
+          const sessionIds = (data.sessions || []).map((s: any) => s.name.split('/').pop());
+          yield { type: 'text', delta: `Existing sessions:\n${sessionIds.map((id: string) => `- ${id}`).join('\n') || 'None'}` };
+        } else {
+          yield { type: 'text', delta: `Failed to list sessions: ${await res.text()}` };
+        }
+      } catch (e: any) {
+        yield { type: 'text', delta: `Failed to list sessions: ${e.message}` };
+      }
+      isMetadataOnly = true;
+    }
 
-    // Parse @agent and #datasource from prompt
-    const agentMatches = [...opts.prompt.matchAll(/@([a-zA-Z0-9-]+)/g)];
-    const datastoreMatches = [...opts.prompt.matchAll(/#([a-zA-Z0-9-]+)/g)];
-    const agentIds = agentMatches.map(m => m[1]);
-    const datastoreIds = datastoreMatches.map(m => m[1]);
-    
-    // Clean prompt
+    const sessionIdMatch = userMessage.match(/#session_id\s+([a-zA-Z0-9-_]+)/);
+    if (sessionIdMatch) {
+      state.sessionId = `projects/${projectId}/locations/${location}/collections/default_collection/engines/${appId}/sessions/${sessionIdMatch[1]}`;
+      yield { type: 'text', delta: `Continuing session ${sessionIdMatch[1]}... ` };
+    }
+
+    chatStates.set(chatId, state);
+
+    // Clean prompt of all hashtags
     const cleanPrompt = opts.prompt
-      .replace(/@[a-zA-Z0-9-]+/g, '')
-      .replace(/#[a-zA-Z0-9-]+/g, '')
+      .replace(/#(new|sessions|agents|data_sources|all_ds|web_search)\b/g, '')
+      .replace(/#agent\s+[a-zA-Z0-9-_]+/g, '')
+      .replace(/#session_id\s+[a-zA-Z0-9-_]+/g, '')
+      .replace(/#ds\s+\[.*?\]/g, '')
+      .replace(/@[a-zA-Z0-9-]+/g, '') // Also clean the @tags from before
       .trim();
+
+    if (isMetadataOnly && !cleanPrompt.trim()) {
+      yield { type: 'done', terminationReason: 'normal' };
+      return;
+    }
+
+    const endpoint = `https://discoveryengine.googleapis.com/v1alpha/projects/${projectId}/locations/${location}/collections/default_collection/engines/${appId}/assistants/default_assistant:streamAssist?alt=sse`;
 
     const requestBody: any = {
       query: { text: cleanPrompt || opts.prompt },
     };
 
-    if (agentIds.length > 0) {
+    if (state.sessionId) {
+      requestBody.session = state.sessionId;
+    }
+
+    if (state.agentId) {
       requestBody.agentsSpec = {
-        agentSpecs: agentIds.map(id => ({
-          agentId: id
-        }))
+        agentSpecs: [{ agentId: state.agentId }]
       };
     }
 
     const toolsSpec: any = {};
-    if (process.env.GEMINI_ENTERPRISE_ENABLE_WEB_SEARCH === 'true') {
+    if (state.webSearch || process.env.GEMINI_ENTERPRISE_ENABLE_WEB_SEARCH === 'true') {
       toolsSpec.webGroundingSpec = {};
     }
-    if (datastoreIds.length > 0) {
+    
+    if (state.dataSources === 'all') {
+      const opts = await fetchGeminiEnterpriseOptions();
+      if (opts && opts.datastores.length > 0) {
+        toolsSpec.vertexAiSearchSpec = {
+          dataStoreSpecs: opts.datastores.map(id => ({
+            dataStore: `projects/${projectId}/locations/${location}/collections/default_collection/dataStores/${id}`
+          }))
+        };
+      }
+    } else if (Array.isArray(state.dataSources) && state.dataSources.length > 0) {
       toolsSpec.vertexAiSearchSpec = {
-        dataStoreSpecs: datastoreIds.map(id => ({
+        dataStoreSpecs: state.dataSources.map(id => ({
           dataStore: `projects/${projectId}/locations/${location}/collections/default_collection/dataStores/${id}`
         }))
       };
     }
+    
     if (Object.keys(toolsSpec).length > 0) {
       requestBody.toolsSpec = toolsSpec;
     }
