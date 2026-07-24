@@ -18,10 +18,18 @@
 
 ## 主要功能
 
-- 在飞书私聊直接发消息，或在群里 `@bot`，把任务转给本机 Claude Code / Codex CLI。
+- 在飞书私聊直接发消息，或在群里 `@bot`，把任务转给本机 Claude Code / Codex CLI 或 Gemini Enterprise。
 - **流式卡片**：文本回复和工具调用实时更新在同一张卡片上。
 - **COT 过程消息**：可选先发一条过程消息展示 agent 的阶段性文本和工具调用，再单独发送最终答案。
 - **会话延续**：每个聊天、话题或文档评论有自己的会话，不会互相串。
+- **Gemini Enterprise 特有指令与功能**：
+  - `#canvas`：触发 Canvas 模式生成交互式文档或演示文稿 (PPT/Slides) (`toolsSpec.canvasSpec`)。
+  - `#web_search` 或 `web search`：开启实时网络搜索 Grounding (`toolsSpec.webGroundingSpec`)。
+  - `#new`：创建新会话并列出可用 Agent 和 Data Source。
+  - `#sessions` 与 `#session_id <id>`：查看或切换已有会话。
+  - `#agent <id>`：指定特定 Agent。
+  - `#ds [id1, id2]` 或 `#all_ds`：指定特定或全部数据源。
+  - **图片生成与媒体展示**：自动下载生成的图片并通过 `im.v1.image.create` 上传展示于卡片/消息中。
 - **排队与消息合并**：短时间连续发送的消息会合并处理；任务运行中收到的普通消息会排队到下一轮，`/new`、`/cd`、`/ws use`、`/stop` 这类命令可以中断当前任务。
 - **多工作空间**：用 `/cd` 切换当前项目，用 `/ws` 保存和复用常用项目目录。
 - **图片 / 文件**：直接发给 bot，bridge 下载到本地后交给本机 agent 处理。
