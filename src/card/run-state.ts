@@ -12,7 +12,8 @@ export interface ToolEntry {
 
 export type Block =
   | { kind: 'text'; content: string; streaming: boolean }
-  | { kind: 'tool'; tool: ToolEntry };
+  | { kind: 'tool'; tool: ToolEntry }
+  | { kind: 'image'; imageKey: string };
 
 export type FooterStatus = 'thinking' | 'tool_running' | 'streaming' | null;
 export type Terminal = 'running' | 'done' | 'interrupted' | 'error' | 'idle_timeout';
@@ -65,6 +66,12 @@ export function reduce(state: RunState, evt: AgentEvent): RunState {
 
     case 'final_text':
       return { ...state, finalText: evt.content };
+
+    case 'card_image':
+      return {
+        ...state,
+        blocks: [...closeStreamingText(state.blocks), { kind: 'image', imageKey: (evt as any).imageKey }],
+      };
 
     case 'thinking': {
       return {

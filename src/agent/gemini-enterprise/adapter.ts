@@ -115,8 +115,11 @@ export class GeminiEnterpriseAdapter implements AgentAdapter {
 
     // State mutations
     let isMetadataOnly = false;
-    if (/#web_search\b/.test(userMessage)) {
+    if (/#web_search\b|web\s*search/i.test(userMessage)) {
       state.webSearch = true;
+    }
+    if (/#canvas\b/i.test(userMessage)) {
+      state.canvas = true;
     }
     const agentMatch = userMessage.match(/#agent\s+([a-zA-Z0-9-_]+)/);
     if (agentMatch) {
@@ -192,7 +195,7 @@ export class GeminiEnterpriseAdapter implements AgentAdapter {
 
     // Clean prompt of all hashtags
     const cleanPrompt = opts.prompt
-      .replace(/#(new|sessions|agents|data_sources|all_ds|web_search)\b/g, '')
+      .replace(/#(new|sessions|agents|data_sources|all_ds|web_search|canvas)\b/gi, '')
       .replace(/#agent\s+[a-zA-Z0-9-_]+/g, '')
       .replace(/#session_id\s+[a-zA-Z0-9-_]+/g, '')
       .replace(/#ds\s+\[.*?\]/g, '')
@@ -221,8 +224,10 @@ export class GeminiEnterpriseAdapter implements AgentAdapter {
     }
 
     const toolsSpec: any = {};
-    if (state.webSearch || process.env.GEMINI_ENTERPRISE_ENABLE_WEB_SEARCH === 'true') {
-      toolsSpec.webGroundingSpec = {};
+    toolsSpec.imageGenerationSpec = {};
+    toolsSpec.webGroundingSpec = {};
+    if (state.canvas || /#canvas\b/i.test(userMessage)) {
+      toolsSpec.canvasSpec = {};
     }
     
     if (state.dataSources === 'all') {
@@ -280,10 +285,35 @@ export class GeminiEnterpriseAdapter implements AgentAdapter {
             try {
               const data = JSON.parse(line.substring(6));
               
+              if (data.sessionInfo?.session && !state.sessionId) {
+                state.sessionId = data.sessionInfo.session;
+                chatStates.set(chatId, state);
+              }
+
               if (data.answer?.replies?.length > 0) {
-                const text = data.answer.replies[0]?.groundedContent?.content?.text;
-                if (text) {
-                   yield { type: 'text', delta: text };
+                const content = data.answer.replies[0]?.groundedContent?.content;
+                if (content?.text) {
+                   yield { type: 'text', delta: content.text };
+                }
+                if (content?.file?.fileId) {
+                   const fileId = content.file.fileId;
+                   const sessionId = data.sessionInfo?.session || data.session || state.sessionId || data.answer?.name;
+                   if (sessionId) {
+                      try {
+                         const fileRes = await fetch(`https://discoveryengine.googleapis.com/v1alpha/${sessionId}:downloadFile?fileId=${fileId}&alt=media`, {
+                           headers: {
+                             'Authorization': `Bearer ${token}`,
+                             'x-goog-user-project': projectId,
+                           }
+                         });
+                         if (fileRes.ok) {
+                           const arrayBuffer = await fileRes.arrayBuffer();
+                           yield { type: 'image', mimeType: content.file.mimeType || 'image/png', content: Buffer.from(arrayBuffer) };
+                         }
+                      } catch (e) {
+                         yield { type: 'text', delta: `\n[Image fetch error]` };
+                      }
+                   }
                 }
               }
             } catch (e) {

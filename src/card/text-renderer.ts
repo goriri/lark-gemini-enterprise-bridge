@@ -37,7 +37,13 @@ function renderBlock(block: Block): string {
   if (block.kind === 'text') {
     return block.content.trim();
   }
-  return toolLine(block.tool);
+  if (block.kind === 'image') {
+    return `![image](${block.imageKey})`;
+  }
+  if (block.kind === 'tool') {
+    return toolLine(block.tool);
+  }
+  return '';
 }
 
 /**

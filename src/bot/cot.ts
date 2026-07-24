@@ -254,7 +254,7 @@ export function finalAnswerOnlyState(state: RunState): RunState {
     ...state,
     blocks: state.finalText
       ? [{ kind: 'text', content: state.finalText, streaming: false }]
-      : state.blocks.filter((b) => b.kind === 'text'),
+      : state.blocks.filter((b) => b.kind === 'text' || b.kind === 'image'),
     reasoning: { content: '', active: false },
     footer: null,
   };

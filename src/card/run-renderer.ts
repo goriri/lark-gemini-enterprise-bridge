@@ -12,7 +12,11 @@ interface TextGroup {
   kind: 'text';
   content: string;
 }
-type Group = ToolGroup | TextGroup;
+interface ImageGroup {
+  kind: 'image';
+  imageKey: string;
+}
+type Group = ToolGroup | TextGroup | ImageGroup;
 
 export interface RunCardRenderOptions {
   signCallback?: (action: string) => string;
@@ -30,6 +34,8 @@ export function renderCard(state: RunState, options: RunCardRenderOptions = {}):
       if (group.content.trim()) {
         elements.push(markdown(group.content));
       }
+    } else if (group.kind === 'image') {
+      elements.push({ tag: 'img', img_key: group.imageKey, alt: { tag: 'plain_text', content: 'Agent generated image' } });
     } else {
       elements.push(...renderToolGroup(group.tools, state.terminal !== 'running'));
     }
@@ -71,7 +77,11 @@ function* groupBlocks(blocks: Block[]): Generator<Group> {
         yield { kind: 'tools', tools: toolBuf };
         toolBuf = [];
       }
-      yield { kind: 'text', content: b.content };
+      if (b.kind === 'image') {
+        yield { kind: 'image', imageKey: b.imageKey };
+      } else {
+        yield { kind: 'text', content: b.content };
+      }
     }
   }
   if (toolBuf.length > 0) yield { kind: 'tools', tools: toolBuf };

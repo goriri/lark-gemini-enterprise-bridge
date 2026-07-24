@@ -1002,6 +1002,7 @@ async function runAgentBatch(deps: RunBatchDeps): Promise<void> {
           idleTimeoutMs,
           recordSession,
           async () => {},
+          channel,
         );
         await cotDone;
         if (cotPublisher.degradedReason) {
@@ -1045,6 +1046,7 @@ async function runAgentBatch(deps: RunBatchDeps): Promise<void> {
             await cardCtrl.update(renderCard(filterForPrefs(state), cardRenderOptions));
           }
         },
+        channel,
       );
       const streamDone = channel.stream(
         chatId,
@@ -1109,6 +1111,7 @@ async function runAgentBatch(deps: RunBatchDeps): Promise<void> {
             await markdownCtrl.setContent(renderText(filterForPrefs(state)));
           }
         },
+        channel,
       );
       const streamDone = channel.stream(
         chatId,
@@ -1163,6 +1166,7 @@ async function runAgentBatch(deps: RunBatchDeps): Promise<void> {
         idleTimeoutMs,
         recordSession,
         async () => {},
+        channel,
       );
       await sendFinalReply({
         channel,
@@ -1329,6 +1333,7 @@ async function processAgentStream(
   idleTimeoutMs: number | undefined,
   recordSession: (event: AgentEvent) => void,
   flush: (state: RunState) => Promise<void>,
+  channel: LarkChannel,
 ): Promise<RunState> {
   const runStart = Date.now();
   let state: RunState = initialState;
@@ -1387,6 +1392,26 @@ async function processAgentStream(
 
       if (evt.type === 'system') {
         recordSession(evt);
+        continue;
+      }
+      if (evt.type === 'image') {
+        try {
+          const resp: any = await channel.rawClient.im.v1.image.create({
+            data: {
+              image_type: 'message',
+              image: evt.content,
+            },
+          });
+          const imageKey = resp?.image_key ?? resp?.data?.image_key;
+          if (imageKey) {
+            state = reduce(state, { type: 'card_image', imageKey } as any);
+            await flush(state);
+          } else {
+            log.warn('agent', 'image-upload-missing-key', { resp });
+          }
+        } catch (err: any) {
+          log.warn('agent', 'image-upload-failed', { err: err?.message || String(err) });
+        }
         continue;
       }
       if (evt.type === 'usage') {

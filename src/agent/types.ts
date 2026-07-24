@@ -10,6 +10,8 @@ export type AgentEvent =
   | { type: 'thinking'; delta: string }
   | { type: 'tool_use'; id: string; name: string; input: unknown }
   | { type: 'tool_result'; id: string; output: string; isError: boolean }
+  | { type: 'image'; mimeType: string; content: Buffer }
+  | { type: 'card_image'; imageKey: string }
   | {
       type: 'usage';
       inputTokens?: number;
